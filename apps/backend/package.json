@@ -1,9 +1,8 @@
 {
-  "name": "connect4-http",
+  "name": "connect-4-http",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "type": "module",
   "scripts": {
     "test:watch": "jest --watch",
     "format": "prettier --write .",
@@ -27,7 +26,6 @@
     "superagent": "^9.0.2",
     "supertest": "^7.0.0",
     "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
     "typescript": "^5.5.3",
     "vite": "^5.3.3"
   },

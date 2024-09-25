@@ -1,21 +1,25 @@
 {
-  "tasks": {
-    "build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**"]
-    },
-    "lint": {
-      "dependsOn": ["^lint"]
-    },
-    "dev": {
-      "cache": false,
-      "persistent": true
-    },
-    "test:watch": {
-      "cache": false,
-      "persistent": true
-    },
-    "start:dev": {}
-  }
+    "ui": "tui",
+    "tasks": {
+        "build": {
+            "dependsOn": ["^build"],
+            "inputs": ["$TURBO_DEFAULT$", ".env*"],
+            "outputs": [".next/**", "!.next/cache/**"]
+        },
+        "lint": {
+            "dependsOn": ["^lint"]
+        },
+        "dev": {
+            "cache": false,
+            "persistent": true
+        },
+        "test:watch": {
+            "cache": false,
+            "persistent": true
+        },
+        "start:dev": {
+            "cache": false,
+            "persistent": true
+        }
+    }
 }

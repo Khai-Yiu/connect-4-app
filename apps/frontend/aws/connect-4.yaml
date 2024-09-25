@@ -1,0 +1,316 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  Connect4WebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: connect4-website
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+          - DomainName: !GetAtt Connect4WebsiteBucket.DomainName
+            Id: S3Origin
+            S3OriginConfig:
+              OriginAccessIdentity: origin-access-identity/cloudfront/E2L1VGDRMUBO70
+        Enabled: true
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        DefaultRootObject: index.html
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Connect4WebsiteBucket
+      PolicyDocument:
+        Id: MyPolicy
+        Version: "2012-10-17"
+        Statement:
+          - Sid: PublicReadForGetBucketObjects
+            Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "${Connect4WebsiteBucket.Arn}/*"
+
+  Connect4BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: Connect4BuildPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+              - Effect: Allow
+                Action: codebuild:*
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - arn:aws:s3:::connect4-website
+                  - arn:aws:s3:::connect4-website/*
+
+  Connect4DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: Connect4DeployPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - arn:aws:s3:::connect4-website
+                  - arn:aws:s3:::connect4-website/*
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource: "*"
+
+  S3CleanupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+        Policies:
+          - PolicyName: S3CleanupPolicy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogGroup
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                  Resource: arn:aws:logs:*:*:*
+                - Effect: Allow
+                  Action:
+                    - s3:ListBucket
+                    - s3:DeleteObject
+                    - s3:DeleteObjectVersion
+                  Resource:
+                    - arn:aws:s3:::connect4-website
+                    - arn:aws:s3:::connect4-website/*
+                - Effect: Allow
+                  Action:
+                    - cloudformation:SignalResource
+                  Resource: "*"
+
+  Connect4BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: Connect4BuildProject
+      Source:
+        Type: GITHUB
+        Location: https://github.com/Khai-Yiu/connect-4
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                nodejs: 20.x
+              commands:
+                - npm install -g pnpm
+                - pnpm install
+            build:
+              commands:
+                - pnpm run build
+          artifacts:
+            files:
+              - "**/*"
+            base-directory: dist
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:4.0
+        Type: LINUX_CONTAINER
+      ServiceRole: !GetAtt Connect4BuildRole.Arn
+
+  Connect4DeployFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: Connect4DeployFunction
+      Handler: index.handler
+      Role: !GetAtt Connect4DeployRole.Arn
+      Runtime: nodejs20.x
+      Timeout: 900
+      Code:
+        ZipFile: |
+          const fs = require('fs');
+          const path = require('path');
+          const AWS = require('aws-sdk');
+          const s3 = new AWS.S3();
+          const codeBuild = new AWS.CodeBuild();
+
+          exports.handler = async (event) => {
+            const buildParams = {
+              projectName: 'Connect4BuildProject'
+            };
+
+            try {
+              const build = await codeBuild.startBuild(buildParams).promise();
+              const buildId = build.build.id;
+
+              let buildStatus = 'IN_PROGRESS';
+              while (buildStatus === 'IN_PROGRESS') {
+                const buildInfo = await codeBuild.batchGetBuilds({ ids: [buildId] }).promise();
+                buildStatus = buildInfo.builds[0].buildStatus;
+
+                if (buildStatus === 'SUCCEEDED') {
+                  const buildLocation = `dist/`;
+                  const uploadDirectory = async (source, bucket) => {
+                    const files = fs.readdirSync(source);
+                    for (const file of files) {
+                      const filePath = path.join(source, file);
+                      const fileStats = fs.statSync(filePath);
+
+                      if (fileStats.isDirectory()) {
+                        await uploadDirectory(filePath, bucket);
+                      } else {
+                        const fileContent = fs.readFileSync(filePath);
+                        const params = {
+                          Bucket: bucket,
+                          Key: filePath.substring(1),
+                          Body: fileContent
+                        };
+                        await s3.putObject(params).promise();
+                      }
+                    }
+                  };
+
+                  await uploadDirectory(buildLocation, 'connect4-website');
+                } else if (buildStatus === 'FAILED' || buildStatus === 'FAULT' || buildStatus === 'STOPPED' || buildStatus === 'TIMED_OUT') {
+                  throw new Error(`Build failed with status: ${buildStatus}`);
+                } else {
+                  await new Promise(resolve => setTimeout(resolve, 10000));
+                }
+              }
+            } catch (error) {
+              console.error('Error during build or deployment: ', error);
+              throw error;
+            }
+          };
+
+  S3BucketCleanupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: S3BucketCleanupFunction
+      Handler: index.handler
+      Role: !GetAtt S3CleanupRole.Arn
+      Runtime: nodejs20.x
+      Timeout: 900
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          const response = require('cfn-response');
+          const s3 = new AWS.S3();
+
+          exports.handler = async (event, context) => {
+            const bucket = event.ResourceProperties.BucketName;
+
+            if (event.RequestType === 'Delete') {
+              try {
+                const listParams = {
+                  Bucket: bucket
+                };
+                const listedObjects = await s3.listObjectsV2(listParams).promise();
+
+                if (listedObjects.Contents.length === 0) {
+                  response.send(event, context, response.SUCCESS);
+                  
+                  return;
+                }
+
+                const deleteParams = {
+                  Bucket: bucket,
+                  Delete: {
+                    Objects: []
+                  }
+                };
+
+                listedObjects.Contents.forEach(({ Key }) => {
+                  deleteParams.Delete.Objects.push({ Key });
+                });
+
+                await s3.deleteObjects(deleteParams).promise();
+
+                if (listedObjects.IsTruncated) {
+                  await exports.handler(event, context);
+                }
+
+                response.send(event, context, response.SUCCESS);
+              } catch(error) {
+                console.error(error);
+                response.send(event, context, response.FAILED);
+              }
+            } else {
+              response.send(event, context, response.SUCCESS);
+            }
+          };
+Outputs:
+  WebsiteURL:
+    Value: !GetAtt Connect4WebsiteBucket.WebsiteURL
+    Description: URL for static website hosted on S3
+  CloudFrontURL:
+    Value: !GetAtt CloudFrontDistribution.DomainName
+    Description: URL for static website from CloudFront

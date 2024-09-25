@@ -1,0 +1,100 @@
+Parameters:
+    VPCId:
+        Type: AWS::EC2::VPC::Id
+        Description: Choose which VPC the ALB will be deployed to
+    PublicSubnetId:
+        Type: AWS::EC2::Subnet::Id
+        Description: Choose which subnet the ALB should be deployed to
+    PrivateSubnetId:
+        Type: AWS::EC2::Subnet::Id
+        Description: Choose which subnet the ALB should be deployed to
+
+Resources:
+    LoadBalancerSecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allows traffic into your ELB
+            VpcId: !Ref VPCId
+            SecurityGroupIngress:
+                - IpProtocol: tcp
+                  FromPort: 80
+                  ToPort: 80
+                  CidrIp: 0.0.0.0/0
+                - IpProtocol: tcp
+                  FromPort: 443
+                  ToPort: 443
+                  CidrIp: 0.0.0.0/0
+
+    LoadBalancer:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties:
+            Subnets:
+                - !Ref PublicSubnetId
+                - !Ref PrivateSubnetId
+            SecurityGroups:
+                - !Ref LoadBalancerSecurityGroup
+
+    Certificate:
+        Type: AWS::CertificateManager::Certificate
+        Properties:
+            DomainName: connect4.khai.graduate-program.journeyone.com.au
+            ValidationMethod: DNS
+            DomainValidationOptions:
+                - DomainName: connect4.khai.graduate-program.journeyone.com.au
+                  HostedZoneId: Z0164787X2DY8CBRQXLD
+
+    Record:
+        Type: AWS::Route53::RecordSet
+        Properties:
+            Name: connect4.khai.graduate-program.journeyone.com.au
+            Type: A
+            HostedZoneId: Z0164787X2DY8CBRQXLD
+            AliasTarget:
+                DNSName: !GetAtt LoadBalancer.DNSName
+                HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
+
+    HTTPListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        DependsOn:
+            - HTTPSListener
+        Properties:
+            LoadBalancerArn: !Ref LoadBalancer
+            Port: 80
+            Protocol: HTTP
+            DefaultActions:
+                - Type: redirect
+                  RedirectConfig:
+                      Protocol: HTTPS
+                      Port: 443
+                      StatusCode: HTTP_301
+                      Host: '#{host}'
+                      Path: '/#{path}'
+                      Query: '#{query}'
+
+    HTTPSListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            LoadBalancerArn: !Ref LoadBalancer
+            Port: 443
+            Protocol: HTTPS
+            Certificates:
+                - !Ref Certificate
+            DefaultActions:
+                - Type: forward
+                  TargetGroupArn: !Ref TargetGroup
+    TargetGroup:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            Name: 'connect4-http'
+            VpcId: !Ref VPCId
+            Port: 80
+            Protocol: HTTP
+            TargetType: ip
+
+Outputs:
+    LoadBalancer:
+        Value: !Ref LoadBalancer
+    LoadBalancerUrl:
+        Value: !GetAtt LoadBalancer.DNSName
+    TargetGroup:
+        Value: !GetAtt TargetGroup.TargetGroupArn

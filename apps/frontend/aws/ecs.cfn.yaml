@@ -1,0 +1,108 @@
+Parameters:
+    ECRRepositoryURI:
+        Description: URI for the ECR repository
+        Type: String
+    PublicSubnetId:
+        Description: IP of public subnet
+        Type: String
+    VPCId:
+        Description: ID of VPC
+        Type: String
+    TargetGroup:
+        Description: ARN of target group
+        Type: String
+
+Resources:
+    ECSCluster:
+        Type: AWS::ECS::Cluster
+        Properties:
+            ClusterName: connect-4-cluster
+            CapacityProviders:
+                - FARGATE
+            Tags:
+                - Key: environment
+                  Value: sandbox
+
+    ExecutionRole:
+        Type: AWS::IAM::Role
+        Properties:
+            Description: ECS task execution role
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+            AssumeRolePolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service:
+                              - ecs-tasks.amazonaws.com
+                      Action:
+                          - 'sts:AssumeRole'
+            Path: /
+            RoleName: ap-southeast-2-Connect4-Cluster
+
+    LogGroup:
+        Type: AWS::Logs::LogGroup
+        Properties:
+            LogGroupName: connect-4-logs
+        DeletionPolicy: Retain
+        UpdateReplacePolicy: Retain
+
+    TaskDefinition:
+        Type: AWS::ECS::TaskDefinition
+        Properties:
+            ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+            ContainerDefinitions:
+                - Cpu: 256
+                  Name: Connect4Task
+                  Image: !Ref ECRRepositoryURI
+                  Memory: 512
+                  PortMappings:
+                      - ContainerPort: 80
+                        HostPort: 80
+                        Protocol: tcp
+                  LogConfiguration:
+                      LogDriver: awslogs
+                      Options:
+                          awslogs-group: !Ref LogGroup
+                          awslogs-region: ap-southeast-2
+                          awslogs-stream-prefix: ecs
+            NetworkMode: awsvpc
+            RequiresCompatibilities:
+                - FARGATE
+            Memory: 512
+            Cpu: 256
+
+    SecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            GroupDescription: Allow traffic to ECS tasks
+            VpcId: !Ref VPCId
+            SecurityGroupIngress:
+                - IpProtocol: tcp
+                  FromPort: 80
+                  ToPort: 80
+                  CidrIp: 0.0.0.0/0
+                - IpProtocol: tcp
+                  FromPort: 443
+                  ToPort: 443
+                  CidrIp: 0.0.0.0/0
+
+    ECSService:
+        Type: AWS::ECS::Service
+        Properties:
+            Cluster: !Ref ECSCluster
+            DesiredCount: 1
+            LaunchType: FARGATE
+            TaskDefinition: !Ref TaskDefinition
+            NetworkConfiguration:
+                AwsvpcConfiguration:
+                    Subnets:
+                        - !Ref PublicSubnetId
+                    SecurityGroups:
+                        - !Ref SecurityGroup
+                    AssignPublicIp: ENABLED
+            LoadBalancers:
+                - TargetGroupArn: !Ref TargetGroup
+                  ContainerName: Connect4Task
+                  ContainerPort: 80

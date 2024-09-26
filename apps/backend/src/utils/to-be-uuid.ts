@@ -1,12 +1,10 @@
-import { MatcherFunction, MatcherContext } from 'expect';
-
 const UUID_REGEX =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-const toBeUuid: MatcherFunction<[received: string]> = function (
-    this: MatcherContext,
+const toBeUuid = function (
+    this: jest.MatcherContext,
     received: string
-) {
+): jest.CustomMatcherResult {
     const { isNot } = this ?? {};
 
     return {

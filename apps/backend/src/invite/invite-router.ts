@@ -1,5 +1,5 @@
 import express from 'express';
-import { RequestHandler } from 'express-serve-static-core';
+import { RequestHandler } from 'express';
 import InviteService from '@/invite/invite-service';
 import halson from 'halson';
 import { Uuid } from '@/global';

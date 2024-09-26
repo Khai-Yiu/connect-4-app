@@ -1,5 +1,3 @@
-import { MatcherFunction, MatcherContext } from 'expect';
-
 function checkIsPlainObjectOrArray(value: any): boolean {
     return (
         Array.isArray(value) ||
@@ -50,14 +48,17 @@ function isDeeplyUnequal(valueOne: any, valueTwo: any): boolean {
     );
 }
 
-const toBeDeeplyUnequal: MatcherFunction<[received: object, expected: object]> =
-    function (this: MatcherContext, received: object, expected: object) {
-        const isNot = this ?? {};
+const toBeDeeplyUnequal = function (
+    this: jest.MatcherContext,
+    received: object,
+    expected: object
+): jest.CustomMatcherResult {
+    const isNot = this ?? {};
 
-        return {
-            pass: isDeeplyUnequal(received, expected),
-            message: () => `Objects are deeply ${isNot ? 'un' : ''}equal`
-        };
+    return {
+        pass: isDeeplyUnequal(received, expected),
+        message: () => `Objects are deeply ${isNot ? 'un' : ''}equal`
     };
+};
 
 export default toBeDeeplyUnequal;

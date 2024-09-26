@@ -2,10 +2,13 @@
     "compilerOptions": {
         "module": "NodeNext",
         "esModuleInterop": true,
-        "target": "ES6",
+        "target": "ES2022",
         "moduleResolution": "NodeNext",
         "outDir": "dist",
         "isolatedModules": true,
+        "allowImportingTsExtensions": true,
+        "noEmit": true,
+        "baseUrl": "./",
         "paths": {
             "@/*": ["./src/*"]
         }

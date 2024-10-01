@@ -27,6 +27,7 @@ const LoginForm = ({ loginHandler = () => {} }: LoginFormProps) => {
                 <label className="decoration-solid">Email:</label>
                 <input
                     type="email"
+                    name="email"
                     className="border-2"
                     onChange={emailChangeHandler}
                     required
@@ -36,6 +37,7 @@ const LoginForm = ({ loginHandler = () => {} }: LoginFormProps) => {
                 <label className="decoration-solid">Password:</label>
                 <input
                     type="password"
+                    name="password"
                     className="border-2"
                     onChange={passwordChangeHandler}
                     required

@@ -17,6 +17,11 @@ export const TheOneWithALoginHandler: Story = {
         loginHandler: fn((loginDetails) => Promise.resolve(loginDetails))
     }
 };
+export const TheOneWithARedirectToSignupLink: Story = {
+    args: {
+        redirectToSignupHandler: fn(() => {})
+    }
+};
 
 const fillOutLoginFormCorrectly = async (canvas: ReturnType<typeof within>) => {
     const emailInput = canvas.getByPlaceholderText('Email');
@@ -72,7 +77,9 @@ export const TheOneWithAnInvalidEmailSubmitted: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
         const emailInput = canvas.getByPlaceholderText('Email');
+        const passwordInput = canvas.getByPlaceholderText('Password');
         await userEvent.type(emailInput, 'invalidEmail');
+        await userEvent.type(passwordInput, 'Hello123');
         const loginButton = canvas.getByRole('button');
         await userEvent.click(loginButton);
     }

@@ -1,14 +1,16 @@
 import { MouseEvent, useState, ChangeEvent } from 'react';
 import { ClipLoader } from 'react-spinners';
 
-enum LoginState {
+enum SignupState {
     IDLE = 'IDLE',
     PENDING = 'PENDING',
     SUCCESS = 'SUCCESS',
     FAILED = 'FAILED'
 }
 
-export type LoginDetails = {
+type SignupDetails = {
+    firstName: string;
+    lastName: string;
     email: string;
     password: string;
 };
@@ -18,32 +20,34 @@ type ValidationResult = {
     error?: string;
 };
 
-type LoginResponse = {
+type SignupResponse = {
     isSuccessful: boolean;
     message: string;
 };
 
-export type LoginHandler = (
-    loginDetails: LoginDetails
-) => Promise<LoginResponse>;
+export type SignupHandler = (
+    signupDetails: SignupDetails
+) => Promise<SignupResponse>;
 
-type LoginFormProps = {
-    loginHandler?: LoginHandler;
-    redirectToSignupHandler?: () => void;
+type SignupFormProps = {
+    signupHandler?: SignupHandler;
+    redirectToLoginHandler?: () => void;
 };
 
-const resolveFormInputStyle = (loginState: LoginState): string =>
-    `block w-full rounded-md border-0 py-1.5 pl-4 pr-7 text-gray ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:outline-none ${loginState === LoginState.SUCCESS || loginState === LoginState.PENDING ? 'opacity-30' : 'focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-gray-700'}`;
+const resolveFormInputStyle = (signupState: SignupState): string =>
+    `block w-full rounded-md border-0 py-1.5 pl-4 pr-7 text-gray ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:outline-none ${signupState === SignupState.SUCCESS || signupState === SignupState.PENDING ? 'opacity-30' : 'focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-gray-700'}`;
 
-const resolveLoginButtonStyle = (loginState: LoginState): string =>
-    `flex flex-col rounded-md text-white max-w-fit font-bold py-1 px-3 bg-[#A2A8D3] ${loginState === LoginState.SUCCESS ? 'opacity-30' : 'hover:bg-[#7E8DBB]'} focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-gray-700`;
+const resolveSignupButtonStyle = (signupState: SignupState): string =>
+    `flex flex-col rounded-md text-white max-w-fit font-bold py-1 px-3 bg-[#A2A8D3] ${signupState === SignupState.SUCCESS ? 'opacity-30' : 'hover:bg-[#7E8DBB]'} focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-gray-700`;
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const validateFields = ({
+    firstName,
+    lastName,
     email,
     password
-}: LoginDetails): ValidationResult => {
-    if (!email && !password) {
+}: SignupDetails): ValidationResult => {
+    if (!firstName && !lastName && !email && !password) {
         return {
             isValid: false,
             error: 'All fields are required.'
@@ -62,14 +66,22 @@ const validateFields = ({
     };
 };
 
-const LoginForm = ({
-    loginHandler = () => Promise.resolve({} as LoginResponse),
-    redirectToSignupHandler = () => {}
-}: LoginFormProps) => {
+const SignupForm = ({
+    signupHandler = () => Promise.resolve({} as SignupResponse),
+    redirectToLoginHandler = () => {}
+}: SignupFormProps) => {
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [message, setMessage] = useState({ isError: false, message: '' });
-    const [loginState, setLoginState] = useState(LoginState.IDLE);
+    const [signupState, setSignupState] = useState(SignupState.IDLE);
+
+    const firstNameChangeHandler = (event: ChangeEvent<HTMLInputElement>) =>
+        setFirstName(event.target.value);
+
+    const lastNameChangeHandler = (event: ChangeEvent<HTMLInputElement>) =>
+        setLastName(event.target.value);
 
     const emailChangeHandler = (event: ChangeEvent<HTMLInputElement>) =>
         setEmail(event.target.value);
@@ -82,50 +94,64 @@ const LoginForm = ({
             <form className="flex flex-col items-center gap-4">
                 <div className="flex flex-col">
                     <input
+                        type="text"
+                        name="firstName"
+                        placeholder="First name"
+                        required
+                        onChange={firstNameChangeHandler}
+                        className={resolveFormInputStyle(signupState)}
+                    />
+                </div>
+                <div className="flex flex-col">
+                    <input
+                        type="text"
+                        name="lastName"
+                        placeholder="Surname"
+                        required
+                        onChange={lastNameChangeHandler}
+                        className={resolveFormInputStyle(signupState)}
+                    />
+                </div>
+                <div className="flex flex-col">
+                    <input
                         type="email"
                         name="email"
-                        onChange={emailChangeHandler}
                         placeholder="Email"
                         required
-                        className={resolveFormInputStyle(loginState)}
-                        readOnly={
-                            loginState === LoginState.PENDING ||
-                            loginState === LoginState.SUCCESS
-                        }
+                        onChange={emailChangeHandler}
+                        className={resolveFormInputStyle(signupState)}
                     />
                 </div>
                 <div className="flex flex-col">
                     <input
                         type="password"
                         name="password"
-                        onChange={passwordChangeHandler}
                         placeholder="Password"
                         required
-                        className={resolveFormInputStyle(loginState)}
-                        readOnly={
-                            loginState === LoginState.PENDING ||
-                            loginState === LoginState.SUCCESS
-                        }
+                        onChange={passwordChangeHandler}
+                        className={resolveFormInputStyle(signupState)}
                     />
                 </div>
                 <Message {...message} />
-                {loginState === LoginState.PENDING ? (
+                {signupState === SignupState.PENDING ? (
                     <ClipLoader />
                 ) : (
                     <button
                         type="submit"
-                        className={resolveLoginButtonStyle(loginState)}
+                        className={resolveSignupButtonStyle(signupState)}
                         onClick={async (event: MouseEvent) => {
                             event.preventDefault();
-                            if (loginState === LoginState.SUCCESS) return;
+                            if (signupState === SignupState.SUCCESS) return;
 
                             const { isValid, error } = validateFields({
+                                firstName,
+                                lastName,
                                 email,
                                 password
                             });
 
                             if (!isValid) {
-                                setLoginState(LoginState.FAILED);
+                                setSignupState(SignupState.FAILED);
                                 setMessage({
                                     isError: true,
                                     message: error!
@@ -134,38 +160,40 @@ const LoginForm = ({
                                 return;
                             }
 
-                            setLoginState(LoginState.PENDING);
+                            setSignupState(SignupState.PENDING);
 
                             try {
                                 const { isSuccessful, message } =
-                                    await loginHandler({
+                                    await signupHandler({
+                                        firstName,
+                                        lastName,
                                         email,
                                         password
                                     });
 
                                 if (isSuccessful) {
-                                    setLoginState(LoginState.SUCCESS);
+                                    setSignupState(SignupState.SUCCESS);
                                     setMessage({ isError: false, message });
                                 } else {
-                                    setLoginState(LoginState.FAILED);
+                                    setSignupState(SignupState.FAILED);
                                     setMessage({ isError: true, message });
                                 }
                             } catch (error) {
-                                const { message } = error as LoginResponse;
-                                setLoginState(LoginState.FAILED);
+                                const { message } = error as SignupResponse;
+                                setSignupState(SignupState.FAILED);
                                 setMessage({ isError: true, message });
                             }
                         }}
                     >
-                        Login
+                        Sign up
                     </button>
                 )}
                 <div className="flex flex-col">
                     <a
                         className="text-blue-500 hover:underline"
-                        onClick={redirectToSignupHandler}
+                        onClick={redirectToLoginHandler}
                     >
-                        Don't have an account? Sign up here.
+                        Already have an account? Log in here.
                     </a>
                 </div>
             </form>
@@ -186,4 +214,4 @@ const Message = ({ isError, message }: MessageProps) => (
     </span>
 );
 
-export default LoginForm;
+export default SignupForm;

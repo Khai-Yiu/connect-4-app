@@ -19,7 +19,7 @@ export const TheOneWithALoginHandler: Story = {
 };
 export const TheOneWithARedirectToSignupLink: Story = {
     args: {
-        redirectToSignupHandler: fn(() => {})
+        redirectToSignupHandler: fn(() => Promise.resolve())
     }
 };
 

@@ -31,7 +31,7 @@ export type SignupHandler = (
 
 type SignupFormProps = {
     signupHandler?: SignupHandler;
-    redirectToLoginHandler?: () => void;
+    redirectToLoginHandler?: () => Promise<void>;
 };
 
 const resolveFormInputStyle = (signupState: SignupState): string =>
@@ -68,7 +68,7 @@ const validateFields = ({
 
 const SignupForm = ({
     signupHandler = () => Promise.resolve({} as SignupResponse),
-    redirectToLoginHandler = () => {}
+    redirectToLoginHandler = () => Promise.resolve()
 }: SignupFormProps) => {
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
@@ -191,7 +191,10 @@ const SignupForm = ({
                 <div className="flex flex-col">
                     <a
                         className="text-blue-500 hover:underline"
-                        onClick={redirectToLoginHandler}
+                        onClick={async (event: MouseEvent) => {
+                            event.preventDefault();
+                            await redirectToLoginHandler();
+                        }}
                     >
                         Already have an account? Log in here.
                     </a>

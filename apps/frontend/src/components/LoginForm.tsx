@@ -29,7 +29,7 @@ export type LoginHandler = (
 
 type LoginFormProps = {
     loginHandler?: LoginHandler;
-    redirectToSignupHandler?: () => void;
+    redirectToSignupHandler?: () => Promise<void>;
 };
 
 const resolveFormInputStyle = (loginState: LoginState): string =>
@@ -64,7 +64,7 @@ const validateFields = ({
 
 const LoginForm = ({
     loginHandler = () => Promise.resolve({} as LoginResponse),
-    redirectToSignupHandler = () => {}
+    redirectToSignupHandler = () => Promise.resolve()
 }: LoginFormProps) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -163,9 +163,12 @@ const LoginForm = ({
                 <div className="flex flex-col">
                     <a
                         className="text-blue-500 hover:underline"
-                        onClick={redirectToSignupHandler}
+                        onClick={async (event: MouseEvent) => {
+                            event.preventDefault();
+                            await redirectToSignupHandler();
+                        }}
                     >
-                        Don't have an account? Sign up here.
+                        {"Don't have an account? Sign up here."}
                     </a>
                 </div>
             </form>
